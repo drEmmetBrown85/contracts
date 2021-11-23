@@ -438,22 +438,44 @@ contract ERC20Capped is ERC20 {
 contract ERC20Sale is SimpleAccessControl, ERC20Capped {
 
 
+    IERC20 private _daiToken;
+    IERC20 private _tetherToken;
+    
+    bool private _onSale;
     uint256 private _nominalRate = 0.000012 ether;
+    uint256 private _nominalRateStable = 0.05 ether;
 
-    constructor(string memory _name, string memory _symbol, address payable _ownerAdress) 
+    
+    constructor(string memory _name, 
+                string memory _symbol,
+                address payable _ownerAdress,
+                address daiAddress,
+                address tetherAddress) 
         ERC20Capped(_name, _symbol)
         SimpleAccessControl(_ownerAdress)
     {
         _mintCapped( _ownerAdress , 60000000000000000000000000 ); //60000000000000000000000000
+        _daiToken = IERC20(daiAddress);
+        _tetherToken = IERC20(tetherAddress);
+        _onSale = true;
+        
     }
     
     
-    
-    function setNominalRate(uint256 rate) public isOwner
+    function setNominalRateEth(uint256 rate) public isOwner
     {
         _nominalRate = rate;
     }
+    function setNominalRateStable(uint256 rate) public isOwner
+    {
+        _nominalRateStable = rate;
+    }
     
+    function setSale(bool onSale) public isOwner returns(bool)
+    {
+          _onSale = onSale;
+          return true;
+    }
     
     
     function getNominalRate() public isOwner returns(uint256)
@@ -463,20 +485,31 @@ contract ERC20Sale is SimpleAccessControl, ERC20Capped {
 
     
     function mintNominal(uint256 _amount) public payable {
+        require(_onSale == false, 'ERC20Sale: SALE_CLOSED');
         require(_amount >= 2000, 'ERC20Sale: ERR_MIN_AMOUNT');
         uint256 value = _amount * _nominalRate / 10**decimals();
         require(value <= msg.value, 'ERC20Sale: ERR_NOT_ENOUGH_FUNDS');
-        _owner.transfer(msg.value);
+        _owner.transfer(value);
         _mintCapped(msg.sender, _amount);
     }
     
     
     function mintInDai(uint256 _amount) public {
-        require(1 >= 2000, 'ERC20Sale: NOT_IMPLEMENT_YET');
+        require(_onSale == false, 'ERC20Sale: SALE_CLOSED');
+        require(_amount >= 2000, 'ERC20Sale: ERR_MIN_AMOUNT_STABLE');
+        uint256 value = _amount * _nominalRateStable / 10**decimals();
+        require(value <= _daiToken.balanceOf(msg.sender), 'ERC20Sale: ERR_NOT_ENOUGH_FUNDS_DAI');
+        _daiToken.transferFrom(msg.sender, _owner, value );
+        _mintCapped(msg.sender, _amount);
     }
     
      function mintInTether(uint256 _amount) public {
-        require(1 >= 2000, 'ERC20Sale: NOT_IMPLEMENT_YET');
+        require(_onSale == false, 'ERC20Sale: SALE_CLOSED');
+        require(_amount >= 2000, 'ERC20Sale: ERR_MIN_AMOUNT_STABLE');
+        uint256 value = _amount * _nominalRateStable / 10**decimals();
+        require(value <= _tetherToken.balanceOf(msg.sender), 'ERC20Sale: ERR_NOT_ENOUGH_FUNDS_TETHER');
+        _tetherToken.transferFrom(msg.sender, _owner, value );
+        _mintCapped(msg.sender, _amount);
     }
 
    
